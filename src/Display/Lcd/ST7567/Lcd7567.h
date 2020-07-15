@@ -1,8 +1,8 @@
 /*
  * Lcd7567.h
  *
- *  Created on: 15 Jul 2020
- *      Author: David
+ *  Created on: 16 Jul 2020
+ *      Author: Martijn
  */
 
 #ifndef SRC_DISPLAY_LCD_ST7567_LCD7567_H_
@@ -31,6 +31,7 @@ protected:
 	void SendLcdData(uint8_t byteToSend) noexcept override;
 
 private:
+	void SetGraphicsAddress(unsigned int r, unsigned int c) noexcept;
 };
 
 #endif
