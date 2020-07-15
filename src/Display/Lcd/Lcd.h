@@ -161,6 +161,7 @@ protected:
 
 	size_t writeNative(uint16_t c) noexcept;		// write a decoded character
 	void SetDirty(PixelNumber r, PixelNumber c) noexcept;
+	void SetRectDirty(PixelNumber top, PixelNumber left, PixelNumber bottom, PixelNumber right) noexcept;
 };
 
 #endif

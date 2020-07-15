@@ -29,7 +29,14 @@ void Lcd::Init(Pin csPin, Pin p_a0Pin, bool csPolarity, uint32_t freq) noexcept
 {
 	a0Pin = p_a0Pin;
 	device.SetClockFrequency(freq);
+
+	// Only for the Duet 2 Maestro AND for drivers requiring active low CS, the alternative pin EXP_1/pa22 is used.
+#ifdef SRC_DUETM_PINS_DUETM_H_
+	device.SetCsPin(csPolarity ? csPin : LcdAltCSPin);
+#else
 	device.SetCsPin(csPin);
+#endif
+
 	device.SetCsPolarity(csPolarity);		// normally active high chip select for ST7920, active low for ST7567
 #ifdef __LPC17xx__
     device.sspChannel = LcdSpiChannel;
@@ -70,16 +77,26 @@ PixelNumber Lcd::GetFontHeight(size_t fontNumber) const noexcept
 }
 
 // Flag a pixel as dirty. The r and c parameters must be no greater than NumRows-1 and NumCols-1 respectively.
-// Only one pixel in each 16-bit word needs to be flagged dirty for the whole word to get refreshed.
 void Lcd::SetDirty(PixelNumber r, PixelNumber c) noexcept
 {
 //	if (r >= NumRows) { debugPrintf("r=%u\n", r); return; }
 //	if (c >= NumCols) { debugPrintf("c=%u\n", c); return; }
 
-	if (c < startCol) { startCol = c; }
-	if (c >= endCol) { endCol = c + 1; }
+/*
 	if (r < startRow) { startRow = r; }
 	if (r >= endRow) { endRow = r + 1; }
+	if (c < startCol) { startCol = c; }
+	if (c >= endCol) { endCol = c + 1; }
+*/
+	SetRectDirty(r, c, r + 1, c + 1);
+}
+
+void Lcd::SetRectDirty(PixelNumber top, PixelNumber left, PixelNumber bottom, PixelNumber right) noexcept
+{
+	if (top < startRow) startRow = top;
+	if (bottom > endRow) endRow = bottom;
+	if (left < startCol) startCol = left;
+	if (right > endCol) endCol = right;
 }
 
 // Write a UTF8 byte.
@@ -328,7 +345,7 @@ void Lcd::ClearToMargin() noexcept
 		else
 		{
 			mask ^= 0xFF >> (rightMargin & 7);
-			nextColumn = rightMargin;;
+			nextColumn = rightMargin;
 		}
 
 		for (uint8_t i = 0; i < fontHeight && p < (image + imageSize); ++i)
@@ -338,7 +355,7 @@ void Lcd::ClearToMargin() noexcept
 			if (newVal != oldVal)
 			{
 				*p = newVal;
-				SetDirty(row + i, column);			// we refresh 16-bit words, so setting 1 pixel dirty in byte will suffice
+				SetRectDirty(row + i, column, row + i + 1, nextColumn);
 			}
 			p += (numCols/8);
 		}
