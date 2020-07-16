@@ -2,7 +2,7 @@
  * Lcd7567.h
  *
  *  Created on: 16 Jul 2020
- *      Author: Martijn
+ *      Author: Martijn Schiedon
  */
 
 #ifndef SRC_DISPLAY_LCD_ST7567_LCD7567_H_
@@ -36,6 +36,8 @@ private:
 	void SetGraphicsAddress(unsigned int r, unsigned int c) noexcept;
 	void StartDataTransaction() noexcept;
 	void EndDataTransaction() noexcept;
+	void PaintEntireDisplay() noexcept;
+	uint8_t TransformTile(uint8_t data[8], PixelNumber c) noexcept;
 };
 
 #endif

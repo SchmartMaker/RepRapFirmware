@@ -2,7 +2,7 @@
  * Lcd7567.cpp
  *
  *  Created on: 16 Jul 2020
- *      Author: Martijn
+ *      Author: Martijn Schiedon
  */
 
 #include "Lcd7567.h"
@@ -13,7 +13,7 @@
 #define TILE_HEIGHT 8
 
 Lcd7567::Lcd7567(const LcdFont * const fnts[], size_t nFonts) noexcept
-	: Lcd(128, 64, fnts, nFonts)
+	: Lcd(64, 128, fnts, nFonts)
 {
 }
 
@@ -81,12 +81,79 @@ void Lcd7567::HardwareInit() noexcept
 	DeselectDevice();
 }
 
+#ifdef TEST_SCENARIO
+
+// Test to flush entire display each time something is dirty, no matter how small
+// If this function is not used, the linker ignores it and it will not contribute to the firmware size
+void Lcd7567::PaintEntireDisplay() noexcept
+{
+	{
+		SelectDevice();
+
+		uint8_t tile[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+		// Send 8 rows of pixels in each transaction
+		for(int y = 0; y < numRows; y += 8)
+		{
+			// Set where the bytes go
+			SetGraphicsAddress(y, 0);
+
+			StartDataTransaction();
+
+			// Send tiles of 8x8 for the entire display width
+			for(int x = 0; x < numCols; x += 8)
+			{
+				// Fill the tile buffer
+				for(int i = 0; i < 8; i++)
+				{
+					tile[i] = *(image + ((y + i) * (numCols / 8)) + (x / 8));
+				}
+				// Send the tile, as vertical rows made out of the bits 7, then a row of bits 6, and so on.
+				for(int i = 7; i >= 0; i--)
+				{
+					SendLcdData(TransformTile(tile, i));
+				}
+			}
+
+			EndDataTransaction();
+		}
+
+		// End update
+		DeselectDevice();
+	}
+
+	// Reset dirty rectangle and row tracking
+	startRow = numRows;
+	startCol = numCols;
+	endCol = endRow = nextFlushRow = 0;
+}
+
+// Array of bytes is assumed to be 8 in size (square tile of 8x8 bits)
+//TODO: define Tile data type?
+uint8_t Lcd7567::TransformTile(uint8_t data[8], PixelNumber c) noexcept
+{
+	return ((data[0] >> c) & 1)
+         | ((data[1] >> c) & 1) << 1
+		 | ((data[2] >> c) & 1) << 2
+		 | ((data[3] >> c) & 1) << 3
+		 | ((data[4] >> c) & 1) << 4
+		 | ((data[5] >> c) & 1) << 5
+		 | ((data[6] >> c) & 1) << 6
+		 | ((data[7] >> c) & 1) << 7;
+}
+
+#endif
+
 // Flush some of the dirty part of the image to the LCD, returning true if there is more to do
 bool Lcd7567::FlushSome() noexcept
 {
 	// See if there is anything to flush
 	if (endCol > startCol && endRow > startRow)
 	{
+#ifdef TEST_SCENARIO
+		PaintEntireDisplay();
+		return false;
+#endif
 		// Decide which row to flush next
 		if (nextFlushRow < startRow || nextFlushRow >= endRow)
 		{
@@ -127,7 +194,7 @@ bool Lcd7567::FlushSome() noexcept
 		}
 
 		// Check if there is still area to flush
-		if (startRow != endRow)
+		if (startRow < endRow)
 		{
 			nextFlushRow += TILE_HEIGHT;
 			return true;
@@ -158,7 +225,7 @@ void Lcd7567::DeselectDevice() noexcept
 	delayMicroseconds(1);
 	device.Deselect();
 
-	#ifdef SRC_DUETM_PINS_DUETM_H_
+#ifdef SRC_DUETM_PINS_DUETM_H_
 	// Only for the Duet 2 Maestro since the LCD_CS gates the SPI0_SCK and SPI0_MOSI.
 	digitalWrite(LcdCSPin, false);
 #endif
