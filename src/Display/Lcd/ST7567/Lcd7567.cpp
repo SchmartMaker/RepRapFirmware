@@ -27,6 +27,9 @@ void Lcd7567::HardwareInit() noexcept
 	pinMode(LcdCSPin, OUTPUT_LOW);
 #endif
 
+	// Post-reset wait of 6ms
+	delay(6);
+
 	SelectDevice();
 
 	// 11100010 System reset
