@@ -9,7 +9,7 @@
 
 #if SUPPORT_12864_LCD
 
-#define TILE_WIDTH 8
+#define TILE_WIDTH 1
 #define TILE_HEIGHT 8
 
 Lcd7567::Lcd7567(const LcdFont * const fnts[], size_t nFonts) noexcept
@@ -22,7 +22,12 @@ void Lcd7567::HardwareInit() noexcept
 	// Set DC/A0 pin to be an output with initial LOW state (command: 0, data: 1)
 	pinMode(a0Pin, OUTPUT_LOW);
 
-	device.Select();
+#ifdef SRC_DUETM_PINS_DUETM_H_
+	// Only for the Duet 2 Maestro since the LCD_CS gates the SPI0_SCK and SPI0_MOSI.
+	pinMode(LcdCSPin, OUTPUT_LOW);
+#endif
+
+	SelectDevice();
 
 	// 11100010 System reset
 	SendLcdCommand(0xE2);
@@ -57,12 +62,12 @@ void Lcd7567::HardwareInit() noexcept
 	// 10100101 Set all pixel on
 	SendLcdCommand(0xA5);
 
-	device.Deselect();
+	DeselectDevice();
 
 	Clear();
 	FlushAll();
 
-	device.Select();
+	SelectDevice();
 
 	// Enable display
 	// 10100100 Set all pixel off
@@ -70,7 +75,7 @@ void Lcd7567::HardwareInit() noexcept
 	// 10101111 Set display enable to on
 	SendLcdCommand(0xAF);
 
-	device.Deselect();
+	DeselectDevice();
 }
 
 // Flush some of the dirty part of the image to the LCD, returning true if there is more to do
@@ -90,11 +95,13 @@ bool Lcd7567::FlushSome() noexcept
 			startRow += TILE_HEIGHT;	// flag this row as flushed because it will be soon
 		}
 
+		uint8_t startCom = nextFlushRow & ~(TILE_HEIGHT - 1);
+
 		// Flush that row (which is 8 pixels high)
 		{
-			device.Select();
-
-			SetGraphicsAddress(nextFlushRow, startCol);
+			SelectDevice();
+			SetGraphicsAddress(startCom, startCol);
+			StartDataTransaction();
 
 			// Send tiles of 1x8 for the desired (quantized) width of the dirty rectangle
 			for(int x = startCol; x < endCol; x += TILE_WIDTH)
@@ -104,7 +111,7 @@ bool Lcd7567::FlushSome() noexcept
 				// Gather the bits for a vertical line of 8 pixels (LSB is the top pixel)
 				for(uint8_t i = 0; i < 8; i++)
 				{
-					if(ReadPixel(x, startRow + i)) {
+					if(ReadPixel(x, startCom + i)) {
 						data |= (1u << i);
 					}
 				}
@@ -112,7 +119,8 @@ bool Lcd7567::FlushSome() noexcept
 				SendLcdData(data);
 			}
 
-			device.Deselect();
+			EndDataTransaction();
+			DeselectDevice();
 		}
 
 		// Check if there is still area to flush
@@ -128,6 +136,29 @@ bool Lcd7567::FlushSome() noexcept
 	}
 
 	return false;
+}
+
+void Lcd7567::SelectDevice() noexcept
+{
+#ifdef SRC_DUETM_PINS_DUETM_H_
+	// Only for the Duet 2 Maestro since the LCD_CS gates the SPI0_SCK and SPI0_MOSI.
+	digitalWrite(LcdCSPin, true);
+#endif
+
+	delayMicroseconds(1);
+	device.Select();
+	delayMicroseconds(1);
+}
+
+void Lcd7567::DeselectDevice() noexcept
+{
+	delayMicroseconds(1);
+	device.Deselect();
+
+	#ifdef SRC_DUETM_PINS_DUETM_H_
+	// Only for the Duet 2 Maestro since the LCD_CS gates the SPI0_SCK and SPI0_MOSI.
+	digitalWrite(LcdCSPin, false);
+#endif
 }
 
 // Set the address to write to.
@@ -156,16 +187,26 @@ void Lcd7567::DataDelay() noexcept
 
 void Lcd7567::SendLcdCommand(uint8_t byteToSend) noexcept
 {
-	digitalWrite(a0Pin, false);
+	//digitalWrite(a0Pin, false);
 	uint8_t data[1] = { byteToSend };
 	device.TransceivePacket(data, nullptr, 1);
 }
 
-void Lcd7567::SendLcdData(uint8_t byteToSend) noexcept
+void Lcd7567::StartDataTransaction() noexcept
 {
 	digitalWrite(a0Pin, true);
+}
+
+void Lcd7567::SendLcdData(uint8_t byteToSend) noexcept
+{
+	//digitalWrite(a0Pin, true);
 	uint8_t data[1] = { byteToSend };
 	device.TransceivePacket(data, nullptr, 1);
+}
+
+void Lcd7567::EndDataTransaction() noexcept
+{
+	digitalWrite(a0Pin, false);
 }
 
 #endif

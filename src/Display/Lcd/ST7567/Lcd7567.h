@@ -31,7 +31,11 @@ protected:
 	void SendLcdData(uint8_t byteToSend) noexcept override;
 
 private:
+	void SelectDevice() noexcept;
+	void DeselectDevice() noexcept;
 	void SetGraphicsAddress(unsigned int r, unsigned int c) noexcept;
+	void StartDataTransaction() noexcept;
+	void EndDataTransaction() noexcept;
 };
 
 #endif
